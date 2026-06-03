@@ -201,7 +201,7 @@ public class ModelParser {
                 boneInfo.add("elements", elementsToJson(elements));
                 boneInfo.add("texture_size", textureSize);
                 boneInfo.add("display", display(midOffset));
-                modelInfo.put(boneName + ".json", boneInfo.build());
+                modelInfo.put(safeBoneName(boneName) + ".json", boneInfo.build());
             }
         }
 
@@ -400,12 +400,23 @@ public class ModelParser {
         return res;
     }
 
+    /// Sanitizes a bone name into a valid resource-location path segment.
+    /// Minecraft 1.21.9+ (resource-pack format 84+) strictly rejects resource locations
+    /// containing characters outside `[a-z0-9/._-]`, so bone names like "R-Thigh" must be
+    /// lowercased and any remaining invalid characters replaced. Applied only where the bone
+    /// name forms a model resource location (the model file name in [#createIndividualModels]
+    /// and the range_dispatch reference below); the runtime model_mappings keys intentionally
+    /// keep the original bone names so the backend lookup still matches.
+    private static String safeBoneName(String bone) {
+        return bone.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_");
+    }
+
     private static JsonObject createEntry(int threshold, String name, String state, String bone) {
         final JsonObjectBuilder entry = Json.createObjectBuilder();
 
         final JsonObjectBuilder model = Json.createObjectBuilder();
         model.add("type", "model");
-        model.add("model", "worldseed:mobs/" + name + "/" + state + "/" + bone);
+        model.add("model", "worldseed:mobs/" + name + "/" + state + "/" + safeBoneName(bone));
 
         entry.add("threshold", threshold);
         entry.add("model", model);
@@ -482,12 +493,21 @@ public class ModelParser {
     }
 
     record UV(double x1, double y1, double x2, double y2, String texture, int rotation) {
+        /// Clamps a UV coordinate to the valid [0, 16] model-UV range. WSEE emits degenerate
+        /// out-of-bounds UVs (negative or >16) for invisible hitbox cubes; Minecraft 1.21.9+
+        /// (pack format 84+) throws "Cannot compute translucency out of bounds" while baking
+        /// such faces, which fails the whole magma_cream item model. Visible faces are already
+        /// within [0, 16], so this only repairs the degenerate ones.
+        private static double clampUv(double v) {
+            return Math.max(0.0, Math.min(16.0, v));
+        }
+
         public JsonObject asJson() {
             JsonArrayBuilder els = Json.createArrayBuilder();
-            els.add(x1);
-            els.add(y1);
-            els.add(x2);
-            els.add(y2);
+            els.add(clampUv(x1));
+            els.add(clampUv(y1));
+            els.add(clampUv(x2));
+            els.add(clampUv(y2));
 
             JsonObjectBuilder res = Json.createObjectBuilder();
 

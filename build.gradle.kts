@@ -13,6 +13,7 @@ java {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven(url = "https://jitpack.io")
 }
@@ -21,7 +22,10 @@ publishing {
     publications.create<MavenPublication>("maven") {
         groupId = "net.worldseed.multipart"
         artifactId = "WorldSeedEntityEngine"
-        version = "11.5.6"
+        // 11.5.8: animation rotation sign fix — FrameProvider.RotationMul is now identity (1,1,1)
+        // so animations match the raw rest-rotation convention. Plus Blockbench format-5.0
+        // group-pivot resolution (GeoGenerator).
+        version = "11.5.8"
 
         from(components["java"])
     }
@@ -41,6 +45,8 @@ publishing {
 dependencies {
     testImplementation(libs.junit.api)
     testRuntimeOnly(libs.junit.engine)
+    // Gradle 9 no longer adds the JUnit Platform launcher to the test runtime automatically.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     compileOnly(libs.minestom)
     testImplementation(libs.minestom)
